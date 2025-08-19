@@ -19,3 +19,5 @@ Se recomienda usar un entorno virtual. Instalar dependencias con:
 
 ```bash
 pip install -r requirements.txt
+
+
