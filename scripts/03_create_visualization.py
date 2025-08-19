@@ -1,6 +1,4 @@
-# ==============================================
-# Serie temporal NDVI con suavizado y tendencia
-# ==============================================
+# Author: Albert Linan Maho
 
 import os
 import rasterio
@@ -11,107 +9,133 @@ from rasterio.mask import mask
 import geopandas as gpd
 from datetime import datetime
 from scipy.stats import linregress
+from pathlib import Path
+from shapely.geometry import mapping
 
 # -------------------------------
-# CONFIGURACIÓN
+# CONFIGURATION
 # -------------------------------
-# Carpeta donde tienes los NDVI en GeoTIFF
-path = "C:/Users/Ordenador Lenovo/Documents/geodata/proyecto_labrena/analisis_la_brena/"
-ndvi_folder = os.path.join(path, "ndvi_10/tiff_clipped")
+# Base path = parent of the parent of the current script
+base_path = Path(__file__).parent.parent.resolve()
+print(f"[INFO] Base path: {base_path}")
 
-# Archivo GeoJSON o Shapefile con el AOI (Parque Natural de la Breña)
-aoi_path = os.path.join(path, "data/parque_brena_combinado.geojson")
+ndvi_folder = base_path / "ndvi" / "tiff_clipped"
+print(f"[INFO] NDVI input folder: {ndvi_folder}")
+
+aoi_path = base_path / "data" / "parque_brena_recortado.geojson"
+print(f"[INFO] AOI path: {aoi_path}")
 
 # -------------------------------
-# 1. Leer AOI
+# Load AOI
 # -------------------------------
+print("[STEP 1] Loading AOI...")
 aoi = gpd.read_file(aoi_path)
-aoi = aoi.to_crs(epsg=32630)  # Ajusta si es necesario
+aoi = aoi.to_crs(epsg=32630)  # Adjust CRS if necessary
+print(f"[INFO] AOI loaded with {len(aoi)} geometries. CRS: {aoi.crs}")
 
 # -------------------------------
-# 2. Función para calcular NDVI medio
+# Function to calculate mean NDVI
 # -------------------------------
-def calcular_ndvi_medio(raster_path, aoi_geom):
-    """Recorta el raster al AOI y calcula la media de NDVI."""
-    with rasterio.open(raster_path) as src:
-        if aoi_geom.crs != src.crs:
-            aoi_geom = aoi_geom.to_crs(src.crs)
-        
-        geoms = [aoi_geom.geometry.union_all()]  # Unir geometrías
-        out_image, _ = mask(src, geoms, crop=True)
-        ndvi = out_image[0]
+def calculate_mean_ndvi(raster_path, aoi_geom):
+    """Clip raster by AOI and calculate mean NDVI."""
+    try:
+        with rasterio.open(raster_path) as src:
+            if aoi_geom.crs != src.crs:
+                print("[INFO] Reprojecting AOI to match raster CRS")
+                aoi_geom = aoi_geom.to_crs(src.crs)
 
-        ndvi = ndvi[ndvi != src.nodata]
-        if ndvi.size == 0:
-            return np.nan
-        
-        return float(np.nanmean(ndvi))
+            geoms = [mapping(aoi_geom.union_all())]
+            out_image, _ = mask(src, geoms, crop=True)
+            ndvi = out_image[0]
+
+            ndvi = ndvi[ndvi != src.nodata]
+            if ndvi.size == 0:
+                print(f"[WARNING] No valid NDVI values found in {raster_path}")
+                return np.nan
+
+            return float(np.nanmean(ndvi))
+    except Exception as e:
+        print(f"[ERROR] Failed to calculate mean NDVI for {raster_path}: {e}")
+        return np.nan
 
 # -------------------------------
-# 3. Procesar archivos
+# 3. Process raster files
 # -------------------------------
-resultados = []
+print("[STEP 2] Processing NDVI rasters...")
+results = []
+num_processed, num_failed = 0, 0
 
 for file in os.listdir(ndvi_folder):
-    if file.lower().endswith(".tiff"):
-        path = os.path.join(ndvi_folder, file)
+    if file.lower().endswith((".tif", ".tiff")):
+        raster_path = ndvi_folder / file
+        print(f"\n[PROCESSING] File: {file}")
 
         try:
-            fecha_str = file.split("_")[4]  # Ajusta si cambia el formato
-            fecha = datetime.strptime(fecha_str, "%Y%m%d").date()
-        except:
-            print(f"No se pudo extraer fecha de {file}")
+            # Extract date from filename
+            date_str = file.split("_")[4]  # Adjust if filename format changes
+            date = datetime.strptime(date_str, "%Y%m%d").date()
+            print(f"[INFO] Extracted date: {date}")
+        except Exception as e:
+            print(f"[ERROR] Could not extract date from {file}: {e}")
+            num_failed += 1
             continue
 
-        ndvi_medio = calcular_ndvi_medio(path, aoi)
-        resultados.append({"fecha": fecha, "ndvi_medio": ndvi_medio})
+        mean_ndvi = calculate_mean_ndvi(raster_path, aoi)
+        results.append({"date": date, "mean_ndvi": mean_ndvi})
+        num_processed += 1
 
-df = pd.DataFrame(resultados).sort_values("fecha")
+print(f"\n[SUMMARY] Processed: {num_processed}, Failed: {num_failed}")
 
-# -------------------------------
-# 4. Suavizado con media móvil
-# -------------------------------
-ventana = 3  # Número de imágenes a promediar
-df["ndvi_suavizado"] = df["ndvi_medio"].rolling(window=ventana, center=True).mean()
+df = pd.DataFrame(results).sort_values("date")
 
 # -------------------------------
-# 5. Cálculo de tendencia lineal
+# 4. Moving average smoothing
 # -------------------------------
-# Convertimos fechas a números (días desde la primera fecha)
-# Convertir a datetime si no lo está
-df["fecha"] = pd.to_datetime(df["fecha"])
-
-# Convertimos fechas a números (días desde la primera fecha)
-dias_desde_inicio = (df["fecha"] - df["fecha"].min()).dt.days
-slope, intercept, r_value, p_value, std_err = linregress(dias_desde_inicio, df["ndvi_medio"])
-
-tendencia = "creciente" if slope > 0 else "decreciente"
-print(f"Tendencia NDVI: {tendencia}")
-print(f"Pendiente: {slope:.6f} NDVI/día")
-print(f"R²: {r_value**2:.3f}")
+print("[STEP 3] Applying moving average smoothing...")
+window = 3  # Number of images to average
+df["ndvi_smoothed"] = df["mean_ndvi"].rolling(window=window, center=True).mean()
 
 # -------------------------------
-# 6. Graficar
+# 5. Linear trend analysis
 # -------------------------------
+print("[STEP 4] Calculating linear trend...")
+df["date"] = pd.to_datetime(df["date"])
+days_since_start = (df["date"] - df["date"].min()).dt.days
+
+slope, intercept, r_value, p_value, std_err = linregress(days_since_start, df["mean_ndvi"])
+trend = "increasing" if slope > 0 else "decreasing"
+
+print(f"[RESULT] NDVI trend: {trend}")
+print(f"[RESULT] Slope: {slope:.6f} NDVI/day")
+print(f"[RESULT] R²: {r_value**2:.3f}")
+
+# -------------------------------
+# 6. Plotting
+# -------------------------------
+print("[STEP 5] Plotting time series...")
 plt.figure(figsize=(12,6))
-plt.plot(df["fecha"], df["ndvi_medio"], marker="o", linestyle="-", color="green", alpha=0.5, label="NDVI original")
-plt.plot(df["fecha"], df["ndvi_suavizado"], color="red", linewidth=2, label=f"NDVI suavizado ({ventana} imágenes)")
+plt.plot(df["date"], df["mean_ndvi"], marker="o", linestyle="-", color="green", alpha=0.5, label="Original NDVI")
+plt.plot(df["date"], df["ndvi_smoothed"], color="red", linewidth=2, label=f"Smoothed NDVI ({window} images)")
 
-# Línea de tendencia
-tend_line = intercept + slope * dias_desde_inicio
-plt.plot(df["fecha"], tend_line, color="blue", linestyle="--", label="Tendencia lineal")
+# Trend line
+trend_line = intercept + slope * days_since_start
+plt.plot(df["date"], trend_line, color="blue", linestyle="--", label="Linear trend")
 
-plt.title("Serie temporal NDVI - Parque Natural de la Breña", fontsize=14)
-plt.xlabel("Fecha", fontsize=12)
-plt.ylabel("NDVI medio", fontsize=12)
+plt.title("NDVI Time Series - Parque Natural de la Breña", fontsize=14)
+plt.xlabel("Date", fontsize=12)
+plt.ylabel("Mean NDVI", fontsize=12)
 plt.legend()
 plt.grid(True)
-plt.savefig("serie_temporal_ndvi_suavizada.png") 
+
+output_plot = base_path / "results" / "temporal_series_ndvi_smoothed.png"
+plt.savefig(output_plot)
 plt.show()
-
+print(f"[INFO] Plot saved as {output_plot}")
 
 # -------------------------------
-# 7. Guardar resultados
+# 7. Save results
 # -------------------------------
-df.to_csv("serie_temporal_ndvi_suavizada.csv", index=False)
-print("Serie temporal guardada como 'serie_temporal_ndvi_suavizada.csv'")
+output_csv = base_path / "results" / "temporal_series_ndvi_smoothed.csv"
+df.to_csv(output_csv, index=False)
+print(f"[INFO] Time series saved as {output_csv}")
+

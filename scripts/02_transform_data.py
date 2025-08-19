@@ -1,6 +1,5 @@
 # Author: Albert Linan Maho
 
-# 1. Required libraries
 import os
 import rasterio
 from rasterio.mask import mask
@@ -8,7 +7,6 @@ import geopandas as gpd
 from shapely.geometry import mapping
 from pathlib import Path
 
-# === CONFIGURATION ===
 # Define the base path as two levels above the current script location
 base_path = Path(__file__).parent.parent.resolve()
 print(f"[INFO] Base path set to: {base_path}")
@@ -26,14 +24,18 @@ output_folder = input_folder / "tiff_clipped"
 output_folder.mkdir(exist_ok=True)
 print(f"[INFO] Output folder created (if not existing): {output_folder}")
 
-# 2. Load AOI
+# -------------------------------
+# Load AOI
+# -------------------------------
 print("[STEP 1] Loading AOI...")
 aoi = gpd.read_file(aoi_path)
 aoi = aoi.to_crs("EPSG:4326")  # Ensure AOI is in WGS84
 geojson_aoi = [mapping(aoi.union_all())]  # Convert AOI to mask format
 print(f"[INFO] AOI loaded successfully with {len(aoi)} geometries")
 
-# 3. Clip images
+# -------------------------------
+# Clip images
+# -------------------------------
 print("[STEP 2] Starting clipping process...")
 num_processed = 0
 num_failed = 0

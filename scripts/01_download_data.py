@@ -7,7 +7,9 @@ import odc.geo
 import os
 from pathlib import Path
 
-
+# -------------------------------
+# Connect to catalog
+# -------------------------------
 def connect_to_stac_catalog(url="https://earth-search.aws.element84.com/v1"):
     """
     Connects to a public STAC catalog.
@@ -21,6 +23,9 @@ def connect_to_stac_catalog(url="https://earth-search.aws.element84.com/v1"):
     print(f"Connecting to STAC catalog at: {url}")
     return Client.open(url)
 
+# -------------------------------
+# Search sentinel data
+# -------------------------------
 def search_sentinel_data(client, aoi_path, collection, date_range, cloud_cover_limit=0.2):
     """
     Search for Sentinel-2 images matching the specified criteria.
@@ -52,6 +57,9 @@ def search_sentinel_data(client, aoi_path, collection, date_range, cloud_cover_l
     print(f"Found {len(items)} images matching the criteria.")
     return items, geometry
 
+# -------------------------------
+# Process images and calculate ndvi
+# -------------------------------
 def process_and_export_ndvi(items, geometry, output_folder):
     """
     Process each found image, calculate NDVI, and export as GeoTIFF.
@@ -91,6 +99,9 @@ def process_and_export_ndvi(items, geometry, output_folder):
             print(f"  -> Unexpected error processing {item_id}: {e}")
             continue
 
+# -------------------------------
+# Main function
+# -------------------------------
 def main():
     """
     Main function orchestrating the workflow:
