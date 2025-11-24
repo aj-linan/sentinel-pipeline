@@ -1,5 +1,6 @@
 geo-env/
-ndvi/
+data/ndvi/*
+!data/ndvi/.gitkeep
 __pycache__/
 *.pyc
 .DS_Store
