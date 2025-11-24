@@ -2,9 +2,9 @@ from pathlib import Path
 
 # Base paths
 BASE_PATH = Path(__file__).parent.parent.resolve()
-DATA_DIR = BASE_PATH / "input"
-OUTPUT_DIR = BASE_PATH / "ndvi"
-RESULTS_DIR = BASE_PATH / "results"
+DATA_DIR = BASE_PATH / "data" / "input"
+OUTPUT_DIR = BASE_PATH / "data" / "ndvi"
+RESULTS_DIR = BASE_PATH / "data" / "results"
 
 # Ensure directories exist
 DATA_DIR.mkdir(exist_ok=True)

@@ -5,10 +5,11 @@ This project automates the download, processing, and analysis of Sentinel-2 imag
 ## Project Structure
 
 ```text
-├── input/
-│   └── aoi.geojson       # Area of Interest (Parque Natural de la Breña)
-├── ndvi/                 # Output folder for NDVI GeoTIFFs
-├── results/              # Analysis results (plots, CSVs)
+├── data/
+│   ├── input/
+│   │   └── aoi.geojson   # Area of Interest (Parque Natural de la Breña)
+│   ├── ndvi/             # Output folder for NDVI GeoTIFFs
+│   └── results/          # Analysis results (plots, CSVs)
 ├── src/
 │   ├── 00_pipeline.py    # Main entry point
 │   ├── 01_download.py    # Download & NDVI calculation module
