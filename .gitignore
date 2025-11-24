@@ -1,0 +1,5 @@
+geo-env/
+ndvi/
+__pycache__/
+*.pyc
+.DS_Store
